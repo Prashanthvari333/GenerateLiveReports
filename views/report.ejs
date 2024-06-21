@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Test Results</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+        }
+        
+        .pass {
+            color: green;
+            font-weight: bold;
+        }
+        
+        .fail {
+            color: red;
+            font-weight: bold;
+        }
+        
+        #filterToggle,
+        #timeFilter {
+            margin-bottom: 10px;
+            margin-right: 10px;
+        }
+    </style>
+    <script>
+        let showOnlyFailed = false;
+        let timeFilter = 'all';
+
+        function updateResults() {
+            $.get('/api/results', function(data) {
+                let html = '<table><tr><th>Test Name</th><th>Status</th><th>Last Run</th><th>Time Ago</th></tr>';
+                data.forEach(result => {
+                    if (showOnlyFailed && result.status.toLowerCase() !== 'fail') {
+                        return;
+                    }
+                    const lastRun = moment(result.timestamp);
+                    if (!isWithinTimeFilter(lastRun)) {
+                        return;
+                    }
+                    const statusClass = result.status.toLowerCase() === 'pass' ? 'pass' : 'fail';
+                    html += `<tr>
+                        <td>${result.testName}</td>
+                        <td class="${statusClass}">${result.status}</td>
+                        <td>${lastRun.format('YYYY-MM-DD HH:mm:ss')}</td>
+                        <td>${lastRun.fromNow()}</td>
+                    </tr>`;
+                });
+                html += '</table>';
+                $('#results').html(html);
+            });
+        }
+
+        function isWithinTimeFilter(lastRun) {
+            const now = moment();
+            switch (timeFilter) {
+                case 'lastHour':
+                    return lastRun.isAfter(now.subtract(1, 'hour'));
+                case 'last2Hours':
+                    return lastRun.isAfter(now.subtract(2, 'hours'));
+                case 'last3Hours':
+                    return lastRun.isAfter(now.subtract(3, 'hours'));
+                case 'last10mins':
+                    return lastRun.isAfter(now.subtract(10, 'minutes'));
+                case 'last20mins':
+                    return lastRun.isAfter(now.subtract(20, 'minutes'));
+                case 'last30mins':
+                    return lastRun.isAfter(now.subtract(30, 'minutes'));
+                default:
+                    return true; // 'all'
+            }
+        }
+
+        function toggleFilter() {
+            showOnlyFailed = !showOnlyFailed;
+            $('#filterToggle').text(showOnlyFailed ? 'Show All Results' : 'Show Only Failed');
+            updateResults();
+        }
+
+        function changeTimeFilter() {
+            timeFilter = $('#timeFilter').val();
+            updateResults();
+        }
+
+        function deleteCollection() {
+            if (confirm('Are you sure you want to delete all test results? This action cannot be undone.')) {
+                $.ajax({
+                    url: '/api/delete-collection',
+                    type: 'DELETE',
+                    success: function(result) {
+                        alert('Collection deleted successfully');
+                        updateResults();
+                    },
+                    error: function(xhr, status, error) {
+                        alert('Error deleting collection: ' + error);
+                    }
+                });
+            }
+        }
+
+        $(document).ready(function() {
+            updateResults();
+            setInterval(updateResults, 5000);
+            $('#filterToggle').click(toggleFilter);
+            $('#timeFilter').change(changeTimeFilter);
+            $('#deleteCollection').click(deleteCollection);
+        });
+    </script>
+</head>
+
+<body>
+    <h1>Test Results</h1>
+    <button id="filterToggle">Show Only Failed</button>
+    <select id="timeFilter">
+        <option value="all">All Time</option>
+        <option value="lastHour">Last Hour</option>
+        <option value="last2Hours">Last 2 Hour</option>
+        <option value="last3Hours">Last 3 Hour</option>
+        <option value="last10mins">last 10 mins</option>
+        <option value="last20mins">last 20 mins</option>
+        <option value="last30mins">last 30 mins</option>
+    </select>
+
+    <button id="deleteCollection">Delete Data from Database</button>
+
+    <div id="results"></div>
+
+
+
+</body>
+
+</html>
